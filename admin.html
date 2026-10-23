@@ -1,0 +1,30 @@
+<!doctype html><html lang="gl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin · Nadal Musical</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300&family=Jost:wght@300;400&display=swap" rel="stylesheet"><link rel="stylesheet" href="style.css"><script src="config.js"></script><script src="common.js"></script></head><body>
+<header><img src="logo.jpg"><span class="sans" style="letter-spacing:.2em;font-size:12px">PANEL · NADAL MUSICAL</span></header>
+<section id="login" class="center"><h2>Acceso</h2><input type="password" id="pw" placeholder="Contrasinal" style="max-width:300px"><br><br><button class="btn" id="go">Entrar</button><p class="err" id="lerr"></p></section>
+<section id="app" class="hidden" style="max-width:1200px">
+<h2>Reservas</h2><p class="sans" id="stats"></p>
+<div class="sans" style="margin-bottom:12px">Filtro: <select id="flt" style="width:auto"><option value="active">Activas</option><option value="pending">Pendentes de sinal</option><option value="confirmed">Confirmadas</option><option value="cancelled">Canceladas</option><option value="all">Todas</option></select></div>
+<table><thead><tr><th>Data</th><th>Hora</th><th>Familia</th><th>Contacto</th><th>Nenos / idades</th><th>Detalles</th><th>Estado</th><th>Accións</th></tr></thead><tbody id="tb"></tbody></table>
+<h2 style="margin-top:50px">Bloquear / desbloquear horas</h2>
+<div class="sans center"><input type="date" id="bd" min="2026-10-26" max="2027-01-07" style="width:auto"> <span id="bslots"></span></div>
+</section>
+<script>
+let PW='',B=[],S={};const $=s=>document.querySelector(s);
+const adm=(op,x={})=>API.post({action:'admin',password:PW,op,...x});
+$('#go').onclick=async()=>{PW=$('#pw').value;const r=await adm('list');if(!r.ok){$('#lerr').textContent='Contrasinal incorrecto';return}$('#login').classList.add('hidden');$('#app').classList.remove('hidden');show(r)};
+async function refresh(){show(await adm('list'))}
+function show(r){B=r.bookings;S=r.days;const f=$('#flt').value;
+ const L=B.filter(b=>f=='all'||(f=='active'?b.status!='cancelled':b.status==f)).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+ $('#stats').textContent=`${B.filter(b=>b.status=='confirmed').length} confirmadas · ${B.filter(b=>b.status=='pending').length} pendentes · ${B.filter(b=>b.status=='cancelled').length} canceladas`;
+ $('#tb').innerHTML=L.map(b=>`<tr><td>${b.date}</td><td>${b.time}</td><td><b>${b.name}</b></td><td>${b.phone}<br>WA: ${b.whatsapp||"-"}<br>${b.email}</td><td>${b.children} · ${b.ages||''}<br>Adultos: ${b.adults||0} · Mascota: ${b.pets||'-'}</td>
+ <td style="max-width:240px">${b.special?'✨ '+b.special+'<br>':''}${b.song?'♪ '+b.song+'<br>':''}${b.notes||''}</td><td><span class="tag ${b.status}">${b.status=='pending'?'pendente':b.status=='confirmed'?'sinal pagado':'cancelada'}</span></td>
+ <td>${b.status=='pending'?`<button onclick="act('markPaid','${b.id}')">✓ Sinal pagado</button><br>`:''}${b.status!='cancelled'?`<button onclick="mv('${b.id}')">Mover</button> <button onclick="ed('${b.id}')">Editar</button> <button onclick="if(confirm('Cancelar?'))act('cancel','${b.id}')">Cancelar</button>`:''}</td></tr>`).join('');bs();}
+$('#flt').onchange=()=>show({bookings:B,days:S});
+async function act(op,id,x={}){const r=await adm(op,{id,...x});if(!r.ok)alert(r.error);refresh()}
+function mv(id){const d=prompt('Nova data (AAAA-MM-DD):');if(!d)return;const t=prompt('Nova hora (libres: '+(S[d]||[]).filter(s=>s.available).map(s=>s.time).join(', ')+'):');if(t)act('move',id,{date:d,time:t})}
+function ed(id){const b=B.find(x=>x.id==id);const k=prompt('Campo a editar (name, phone, email, children, ages, adults, pets, notes, special, song):');if(!k)return;const v=prompt('Novo valor:',b[k]||'');if(v!==null)act('update',id,{fields:{[k]:v}})}
+function bs(){const d=$('#bd').value;if(!d||!S[d]){$('#bslots').innerHTML='';return}
+ $('#bslots').innerHTML=S[d].map(s=>s.blocked?`<button class="slot sel" onclick="blk('unblock','${d}','${s.time}')">${s.time} 🔒</button>`:s.available?`<button class="slot" onclick="blk('block','${d}','${s.time}')">${s.time}</button>`:`<button class="slot" disabled>${s.time} (reservada)</button>`).join(' ')}
+$('#bd').onchange=bs;async function blk(op,date,time){await adm(op,{date,time});refresh()}
+</script></body></html>
